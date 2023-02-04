@@ -77,15 +77,46 @@ class CategoryFaq extends Module
 
         return parent::install() &&
             $this->registerHook('header') &&
-            $this->registerHook('displayBackOfficeHeader');
+            $this->registerHook('displayBackOfficeHeader') &&
+            $this->registerHook('displayFaq') &&
+            $this->installMainTable();
     }
 
     public function uninstall()
     {
-        Configuration::deleteByName('CATEGORYFAQ_LIVE_MODE');
+
+        if (!parent::uninstall() 
+        || !$this->uninstallMainTable()
+        || !Configuration::deleteByName('categoryfaq')
+        ) {
+            return false;
+        }
+
+        return true;
 
         return parent::uninstall();
     }
+
+    public function installMainTable() {
+
+        return Db::getInstance()->execute(
+            'CREATE TABLE `lm_category_faq` (
+                `id_faq` int(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                `id_category` int(11) NOT NULL, 
+                `id_lang` int(11) NOT NULL,
+                `question` varchar(255) NULL, 
+                `answer` varchar(255) NULL)
+            '
+        );
+
+    }
+
+    public function uninstallMainTable() {
+        return Db::getInstance()->execute(
+            "DROP TABLE lm_category_faq"
+        );
+    }
+
 
     /**
      * Load the configuration form
@@ -226,5 +257,22 @@ class CategoryFaq extends Module
     {
         $this->context->controller->addJS($this->_path.'/views/js/front.js');
         $this->context->controller->addCSS($this->_path.'/views/css/front.css');
+    }
+
+    public function hookDisplayFaq($params) {
+        $id_category = (int) Tools::getValue('id_category');
+        $id_lang = (int) $this->context->language->id;
+
+        $faq = $this->getFaqToDisplay($id_category,$id_lang);
+
+        $this->context->smarty->assign(array(
+            'faq' => $faq,
+        ));
+
+        return $this->display(__FILE__, 'faq-front.tpl');
+    }
+
+    public function getFaqToDisplay($id_category,$id_lang) {
+        return Db::getInstance()->executeS('SELECT `question`,`answer` FROM `lm_category_faq` WHERE `id_category` = '.$id_category.' AND `id_lang` = '.$id_lang.' ORDER BY `id_faq` DESC');
     }
 }
